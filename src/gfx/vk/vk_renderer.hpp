@@ -90,6 +90,8 @@ class VkRenderer final : public Renderer
 
     void prepare(VkCommandBuffer cmd, std::uint32_t frame, float virtual_width = kVirtualWidth,
                  float virtual_height = kVirtualHeight);
+    // Queuing a list stays Renderer::draw(list); this overload records the frame.
+    using Renderer::draw;
     void draw(VkCommandBuffer cmd, int width, int height);
 
     // The last call that failed, for the log (VK_SUCCESS when none has).
