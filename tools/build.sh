@@ -89,8 +89,8 @@ ninja_begin "$build/app.ninja"
 target_compiler=$(command -v "${PS5_CLANG:-clang-18}")
 
 mapfile -d '' -t source_paths < <(
-    find "$root/src" -type f \( -name '*.c' -o -name '*.cc' -o -name '*.cpp' \) \
-        -print0 | sort -z
+    find "$root/src" -path "$root/src/gfx/vk" -prune -o \
+        -type f \( -name '*.c' -o -name '*.cc' -o -name '*.cpp' \) -print0 | sort -z
 )
 sources=()
 for source in "${source_paths[@]}"; do

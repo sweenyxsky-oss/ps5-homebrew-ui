@@ -84,6 +84,7 @@ sequenceDiagram
 | `gfx::Backdrop` | One full-screen triangle and a fragment shader with a mode switch: ten procedural backgrounds and two post overlays |
 | `gfx::Renderer` | The frame's layers (backdrops, lists, glass) and the texture calls, the same for every graphics API |
 | `gfx::GlRenderer` | Plays a frame's layers in order with OpenGL and, on request, replays the layers so far into a 480 x 270 target, blurs it in four passes and exposes it as the glass texture |
+| `gfx::VkRenderer` | The same with Vulkan, for PS5_VulkanTemplate's titles ([VULKAN.md](VULKAN.md)) |
 | `gfx::Canvas` | An off-screen render target (the sample covers are rendered through one at start-up) |
 
 Everything on screen, in every design and every theme, goes through these

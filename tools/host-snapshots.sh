@@ -22,7 +22,8 @@ sources=("$root/host/snapshot_main.cpp" "$root/host/manifest.cpp" "$root/host/pl
 while IFS= read -r -d '' source; do
     sources+=("$source")
 done < <(find "$root/src" -type f \( -name '*.cpp' -o -name '*.c' \) \
-    ! -path "$root/src/platform/*" ! -path "$root/src/runtime/*" ! -name main.cpp -print0 | sort -z)
+    ! -path "$root/src/platform/*" ! -path "$root/src/runtime/*" ! -path "$root/src/gfx/vk/*" \
+    ! -name main.cpp -print0 | sort -z)
 
 objects=()
 for source in "${sources[@]}"; do
