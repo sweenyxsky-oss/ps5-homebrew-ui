@@ -79,6 +79,15 @@ class VkRenderer final : public Renderer
         return kGlassHandle;
     }
 
+    // A sampled image the program owns (a 3D scene it renders off-screen, a
+    // video frame), drawn like any texture: DrawList::image(handle, ...), and
+    // replayed into the glass copies, so frosted panels blur it. The view
+    // stays the program's: it is in SHADER_READ_ONLY_OPTIMAL whenever a frame
+    // that draws it runs, and outlives those frames. destroy_texture forgets
+    // the handle without touching the image. An image the program renders
+    // top row first is drawn with kFullUv.
+    std::uint32_t import_texture(VkImageView view);
+
     void prepare(VkCommandBuffer cmd, std::uint32_t frame, float virtual_width = kVirtualWidth,
                  float virtual_height = kVirtualHeight);
     void draw(VkCommandBuffer cmd, int width, int height);
@@ -112,6 +121,7 @@ class VkRenderer final : public Renderer
         VkDescriptorSet set = VK_NULL_HANDLE;       // samples the image
         int width = 0;
         int height = 0;
+        bool owned = true; // false: an imported view, the program's to destroy
     };
     struct Pipelines
     {

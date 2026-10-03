@@ -617,12 +617,15 @@ void VkRenderer::destroy_image(Image &image)
         vkFreeDescriptorSets(device, descriptor_pool_, 1, &image.set);
     if (image.framebuffer != VK_NULL_HANDLE)
         vkDestroyFramebuffer(device, image.framebuffer, nullptr);
-    if (image.view != VK_NULL_HANDLE)
-        vkDestroyImageView(device, image.view, nullptr);
-    if (image.image != VK_NULL_HANDLE)
-        vkDestroyImage(device, image.image, nullptr);
-    if (image.memory != VK_NULL_HANDLE)
-        vkFreeMemory(device, image.memory, nullptr);
+    if (image.owned)
+    {
+        if (image.view != VK_NULL_HANDLE)
+            vkDestroyImageView(device, image.view, nullptr);
+        if (image.image != VK_NULL_HANDLE)
+            vkDestroyImage(device, image.image, nullptr);
+        if (image.memory != VK_NULL_HANDLE)
+            vkFreeMemory(device, image.memory, nullptr);
+    }
     image = {};
 }
 
@@ -852,6 +855,33 @@ std::uint32_t VkRenderer::render_to_texture(int width, int height, float virtual
         destroy_image(image);
         return 0;
     }
+    const std::uint32_t handle = next_texture_++;
+    textures_.emplace(handle, image);
+    return handle;
+}
+
+std::uint32_t VkRenderer::import_texture(VkImageView view)
+{
+    Image image;
+    image.view = view;
+    image.owned = false;
+    VkDescriptorSetAllocateInfo allocate{};
+    allocate.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocate.descriptorPool = descriptor_pool_;
+    allocate.descriptorSetCount = 1;
+    allocate.pSetLayouts = &texture_layout_;
+    if (view == VK_NULL_HANDLE ||
+        !check(vkAllocateDescriptorSets(config_.device, &allocate, &image.set)))
+        return 0;
+    const VkDescriptorImageInfo descriptor{sampler_, view,
+                                           VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    VkWriteDescriptorSet write{};
+    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.dstSet = image.set;
+    write.descriptorCount = 1;
+    write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    write.pImageInfo = &descriptor;
+    vkUpdateDescriptorSets(config_.device, 1, &write, 0, nullptr);
     const std::uint32_t handle = next_texture_++;
     textures_.emplace(handle, image);
     return handle;
