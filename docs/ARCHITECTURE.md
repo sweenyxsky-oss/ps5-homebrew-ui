@@ -82,7 +82,8 @@ sequenceDiagram
 | `gfx::GlBatch` | One vertex and fragment shader pair draws every instance as a quad; the fragment shader evaluates a signed distance function per shape, so edges are anti-aliased at any scale without multisampling |
 | `gfx::Font` | Signed-distance-field atlases baked offline (`tools/bake-fonts.sh`), one single-channel texture per face, bound to fixed texture units so text never breaks a run |
 | `gfx::Backdrop` | One full-screen triangle and a fragment shader with a mode switch: ten procedural backgrounds and two post overlays |
-| `gfx::Renderer` | Plays a frame's layers in order and, on request, replays the layers so far into a 480 x 270 target, blurs it in four passes and exposes it as the glass texture |
+| `gfx::Renderer` | The frame's layers (backdrops, lists, glass) and the texture calls, the same for every graphics API |
+| `gfx::GlRenderer` | Plays a frame's layers in order with OpenGL and, on request, replays the layers so far into a 480 x 270 target, blurs it in four passes and exposes it as the glass texture |
 | `gfx::Canvas` | An off-screen render target (the sample covers are rendered through one at start-up) |
 
 Everything on screen, in every design and every theme, goes through these

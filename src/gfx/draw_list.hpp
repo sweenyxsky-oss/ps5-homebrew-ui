@@ -67,7 +67,7 @@ struct Rect
 };
 
 // Font atlases live on texture units of their own, so text never breaks a
-// run of shapes: GlBatch::create_font_texture returns a handle made of this
+// run of shapes: Renderer::create_font_texture returns a handle made of this
 // base plus a slot number (1..kFontSlots) instead of a GL texture name.
 constexpr std::uint32_t kFontHandleBase = 0xf0000000u;
 constexpr std::uint32_t kFontSlots = 6;

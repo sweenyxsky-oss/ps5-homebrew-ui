@@ -48,11 +48,11 @@ class Catalog
     Catalog(const Catalog &) = delete;
     Catalog &operator=(const Catalog &) = delete;
 
-    // Renders every cover into its own texture (needs a GL context). The
-    // covers are drawn with the same renderer as the UI: a procedural
-    // backdrop, a few shapes and the title set in the display font.
+    // Renders every cover into its own texture with the renderer that draws
+    // the UI: a procedural backdrop, a few shapes and the title set in the
+    // display font.
     bool build_covers(gfx::Renderer &renderer, const ui::Fonts &fonts);
-    void release_covers();
+    void release_covers(gfx::Renderer &renderer);
 
     std::span<const Item> items() const
     {

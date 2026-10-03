@@ -24,7 +24,7 @@ A UI frame has three costs:
 rectangle and a texture; each run is one draw call.
 
 - Text does not break a run: the font atlases sit on texture units of their
-  own (`GlBatch::create_font_texture` returns a slot handle).
+  own (`Renderer::create_font_texture` returns a slot handle).
 - An *image* starts a run and the next image with another texture starts
   another. Draw images of the same texture together; a grid of 24 different
   covers is 24 runs, which is fine.
