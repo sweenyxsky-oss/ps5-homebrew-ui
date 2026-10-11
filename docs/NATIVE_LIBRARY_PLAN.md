@@ -47,9 +47,10 @@ persistent local index, NFS, and package installation are not implemented.
    exposes title mounting and source management, but no game/DLC/update PKG
    installation endpoint; those are not interchangeable operations.
 5. **Native and hardware validation.** Host tests, snapshots, native build,
-   and real-console checks remain to be run. Console-only API connectivity,
-   controller behavior, filesystem permissions, and firmware compatibility
-   cannot be established from the current Windows-only tool environment.
+   and real-console checks remain to be run. WSL starts, but its Ubuntu image
+   has no Make/Clang/Ninja and sudo requires interactive authentication.
+   Console-only API connectivity, controller behavior, filesystem permissions,
+   and firmware compatibility have not been established.
 
 ## Integration findings
 
