@@ -108,6 +108,20 @@ class Library final : public app::Concept
         age_ = 0.0f;
     }
 
+    std::span<const app::TourStep> tour() const override
+    {
+        static constexpr app::TourStep kTour[] = {
+            {0.4f, 0, Direction::down, nullptr},
+            {0.4f, action_bit(Action::confirm), Direction::none, nullptr},
+            {0.4f, 0, Direction::right, nullptr},
+            {0.4f, action_bit(Action::back), Direction::none, nullptr},
+            {0.4f, action_bit(Action::west), Direction::none, nullptr},
+            {0.4f, 0, Direction::down, nullptr},
+            {0.4f, action_bit(Action::back), Direction::none, nullptr},
+        };
+        return kTour;
+    }
+
     void update(const InputFrame &input, float dt, app::Feedback &feedback) override
     {
         age_ += dt;
@@ -320,7 +334,9 @@ class Library final : public app::Concept
         }
         ui::text(list, fonts.mono, "Address: —     Export path: —     User: —     Password: —",
                  456.0f, 734.0f, 20.0f, kMuted);
-        ui::text(list, fonts.regular, "Not connected: folder picker and NFS client are not implemented",
+        ui::text(list, fonts.regular,
+                 notice_.empty() ? "Not connected: folder picker and NFS client are not implemented"
+                                 : notice_.c_str(),
                  456.0f, 786.0f, 21.0f, kAmber);
         ui::text(list, fonts.regular, "Confirm to see connector status  ·  Circle to return",
                  456.0f, 844.0f, 20.0f, kMuted);
