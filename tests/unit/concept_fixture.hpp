@@ -1,7 +1,3 @@
-// ps5-homebrew-ui - Test fixture: a design with real fonts and no OpenGL.
-// Copyright (C) 2026 BlackBearReloaded
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 #pragma once
 
 #include "app/concept.hpp"
@@ -24,7 +20,7 @@ namespace hui::testing
 class ConceptFixture : public ::testing::Test
 {
   protected:
-    ConceptFixture() : context_{fonts_, catalog_, telemetry_, settings_}
+    ConceptFixture() : context_{fonts_, catalog_, telemetry_, settings_, data_root_}
     {
         load("inter-regular", &regular_, &fonts_.regular);
         load("inter-semibold", &semibold_, &fonts_.semibold);
@@ -104,6 +100,7 @@ class ConceptFixture : public ::testing::Test
     demo::Catalog catalog_;
     app::Telemetry telemetry_;
     Settings settings_;
+    std::string data_root_;
     app::Context context_;
     app::Feedback feedback_;
     std::vector<audio::CueEvent> last_cues_;
@@ -122,3 +119,4 @@ class ConceptFixture : public ::testing::Test
 };
 
 } // namespace hui::testing
+
