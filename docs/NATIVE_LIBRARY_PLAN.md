@@ -22,6 +22,14 @@ last valid catalog in place. The installed filter, scrolling, covers/blocks,
 and title details work with live entries. The client always targets
 `127.0.0.1:10101`; it never sends game data or credentials over the LAN.
 
+The ShadowMount Plus source requires its payload to be installed and running
+on the PS5. The native library is only an API client: it does not load or start
+another ShadowMount Plus payload and does not bind the API port. It coexists
+with the one required ShadowMount Plus service; starting a second copy is not
+needed and may conflict over the same listener/console payload resources.
+When the service is unavailable, the source chooser tells the user to start
+ShadowMount Plus and retry.
+
 The native catalog parser and behavior cases now cover the real response field
 names, escaped Unicode, invalid IDs, API errors, and preservation of the last
 good index. The built-in preview data remains available until the user selects
@@ -82,3 +90,4 @@ persistent index storage, NFS transport, package enumeration and installation
 still require additional platform services and a compatible PS5 backend. Each
 unavailable action remains labelled; only console validation can establish
 the runtime behavior of the API client.
+
