@@ -23,34 +23,37 @@ and title details work with live entries. The client always targets
 `127.0.0.1:10101`; it never sends game data or credentials over the LAN.
 
 The ShadowMount Plus source requires its payload to be installed and running
-on the PS5. The native library is only an API client: it does not load or start
-another ShadowMount Plus payload and does not bind the API port. It coexists
-with the one required ShadowMount Plus service; starting a second copy is not
-needed and may conflict over the same listener/console payload resources.
-When the service is unavailable, the source chooser tells the user to start
-ShadowMount Plus and retry.
+on the PS5. Library browsing stays locked until a successful response from the
+local API. The native library is only an API client: it does not bundle, load,
+or start another ShadowMount Plus payload and does not bind the API port. It
+coexists with the one required ShadowMount Plus service; starting a second copy
+is not needed and may conflict over the same listener/console payload
+resources. When the service is unavailable, the lock screen tells the user to
+start ShadowMount Plus and retry.
 
 The native catalog parser and behavior cases now cover the real response field
 names, escaped Unicode, invalid IDs, API errors, and preservation of the last
-good index. The built-in preview data remains available until the user selects
-the ShadowMount source and completes a successful refresh. ShadowMount does
-not list base-game/DLC/update package files or expose a general package install
-route, so those actions stay unavailable. Direct PS5 folder browsing, a
-persistent local index, NFS, and package installation are not implemented.
+good index. A validated API snapshot is saved atomically in the app's writable
+per-title storage and loaded on the next launch; cached records remain locked
+until the current ShadowMount service check succeeds. ShadowMount does not list
+base-game/DLC/update package files or expose a general package install route,
+so those actions stay unavailable. Direct PS5 folder browsing, NFS, and
+package installation are not implemented.
 
 ## Five milestones
 
 1. **Native library screen.** Implemented: controller-first Installed/Library
-   modes, cover/block layouts, eight-title paging, source dialog, live indexed
-   entries, and title details.
+   modes behind the ShadowMount dependency gate, cover/block layouts, eight-
+   title paging, source dialog, live indexed entries, and title details.
 2. **Title metadata and packages.** Partially implemented: title ID, name,
    source path/type, version, installed state and measured size parse from the
    real API response. API icon retrieval and actual base-game/DLC/update
    package inventory remain to be connected.
 3. **Sources and cached indexing.** Partially implemented: the native app can
    read the existing ShadowMount index from its loopback API without blocking
-   the frame loop. Direct folder selection, NFS credentials/transport and a
-   persistent metadata cache remain unimplemented. No credentials are stored.
+   the frame loop, then atomically save the validated snapshot to per-title
+   storage for the next launch. Direct folder selection and NFS
+   credentials/transport remain unimplemented. No credentials are stored.
 4. **Install actions.** Pending a verified PS5 installer API. ShadowMount
    exposes title mounting and source management, but no game/DLC/update PKG
    installation endpoint; those are not interchangeable operations.
@@ -84,10 +87,11 @@ persistent local index, NFS, and package installation are not implemented.
 
 ## Scope of this branch
 
-The native screen now consumes real ShadowMount title snapshots, while sample
-records are explicitly marked until a successful refresh. Directory browsing,
-persistent index storage, NFS transport, package enumeration and installation
-still require additional platform services and a compatible PS5 backend. Each
-unavailable action remains labelled; only console validation can establish
-the runtime behavior of the API client.
+The native screen consumes real ShadowMount title snapshots and saves a
+validated catalog for fast display on the next launch. A live SMP API response
+is still required to unlock the library. Directory browsing, NFS transport,
+package enumeration and installation still require additional platform
+services and a compatible PS5 backend. Each unavailable action remains
+labelled; only console validation can establish the runtime behavior of the
+API client.
 
