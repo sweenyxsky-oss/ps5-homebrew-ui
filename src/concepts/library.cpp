@@ -369,7 +369,7 @@ class Library final : public app::Concept
         ui::text(list, fonts.regular, "Choose where the native index will look", 456.0f, 412.0f,
                  23.0f, kMuted);
         static constexpr const char *kSources[] = {
-            "ShadowMount Plus  ·  indexed PS5 catalog",
+            "ShadowMount Plus  ·  required local catalog service",
             "PS5 folder  ·  browse internal storage",
             "NFS share  ·  address, export, user, password",
         };
@@ -382,10 +382,13 @@ class Library final : public app::Concept
             ui::text(list, fonts.regular, kSources[i], row.x + 24.0f, row.y + 39.0f, 23.0f,
                      source_focus_ == i ? kInk : kMuted);
         }
+        ui::text(list, fonts.regular,
+                 "Requirement: ShadowMount Plus payload installed and running on this PS5",
+                 456.0f, 704.0f, 20.0f, kMuted);
         ui::text(list, fonts.mono, "Address: —     Export path: —     User: —     Password: —",
                  456.0f, 734.0f, 20.0f, kMuted);
         ui::text(list, fonts.regular,
-                 notice_.empty() ? "Local API: 127.0.0.1:10101  ·  no credentials sent"
+                 notice_.empty() ? "Client only · loopback 127.0.0.1:10101 · does not start another payload"
                                  : notice_.c_str(),
                  456.0f, 786.0f, 21.0f, kAmber);
         ui::text(list, fonts.regular, "Confirm ShadowMount to refresh  ·  Circle to return",
@@ -442,7 +445,7 @@ class Library final : public app::Concept
         else
         {
             notice_ = refresh_result_.error == library::FetchError::connect_failed
-                          ? "ShadowMount Plus API is not reachable on loopback"
+                          ? "ShadowMount Plus is not running — start its payload, then refresh"
                           : "Could not read the ShadowMount Plus game index";
         }
     }
@@ -724,3 +727,4 @@ std::unique_ptr<app::Concept> make_library(app::Context &context)
 }
 
 } // namespace hui::concepts
+
