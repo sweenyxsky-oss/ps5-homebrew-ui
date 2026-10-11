@@ -29,6 +29,7 @@ std::unique_ptr<app::Concept> make_terminal(app::Context &context);
 std::unique_ptr<app::Concept> make_store(app::Context &context);
 std::unique_ptr<app::Concept> make_trophies(app::Context &context);
 std::unique_ptr<app::Concept> make_files(app::Context &context);
+std::unique_ptr<app::Concept> make_library(app::Context &context);
 std::unique_ptr<app::Concept> make_inventory(app::Context &context);
 std::unique_ptr<app::Concept> make_boot(app::Context &context);
 std::unique_ptr<app::Concept> make_settings(app::Context &context);
