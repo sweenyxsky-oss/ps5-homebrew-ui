@@ -2,12 +2,13 @@
 // Copyright (C) 2026 BlackBearReloaded
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// Live titles come from ShadowMount Plus over loopback. Sample records remain
-// visible until the user refreshes from that service. Package installation,
-// direct filesystem scanning, and NFS are not claimed by this design.
+// Live titles come from ShadowMount Plus over loopback. A validated local
+// snapshot can appear quickly, but the library stays locked until SMP responds.
+// This UI never bundles or launches the ShadowMount Plus payload.
 
 #include "concepts/concepts.hpp"
 
+#include "core/save_file.hpp"
 #include "library/shadowmount_client.hpp"
 #include "ui/glyphs.hpp"
 #include "ui/motion.hpp"
@@ -16,6 +17,7 @@
 #include <atomic>
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <iterator>
@@ -79,19 +81,26 @@ constexpr std::array<DemoTitle, 8> kTitles{{
      "PPSA01234-game.ffpkg", "PPSA01234-dlc-02.ffpkg", "PPSA01234-update-02.ffpkg"},
 }};
 
+constexpr std::uint16_t kCatalogCacheVersion = 1;
+constexpr std::size_t kMaxCatalogCacheBytes = 2u * 1024u * 1024u + 16u;
+
 constexpr const char *kTechniques[] = {
     "Native OpenGL screen with controller navigation and explicit focus",
     "Library and installed filters, cover and block layouts, and title details",
-    "ShadowMount Plus indexed titles, install state, source path, and measured size",
-    "Loopback API work runs on a worker so input and drawing stay responsive",
+    "ShadowMount Plus index with a validated per-title cache and runtime lock",
+    "Loopback API work and cache writes run on a worker thread",
     "Package groups and install actions show explicit unavailable states",
 };
 
 class Library final : public app::Concept
 {
   public:
-    explicit Library(app::Context &context) : context_(context)
+    explicit Library(app::Context &context)
+        : context_(context),
+          cache_path_(context.data_root.empty() ? std::string()
+                                                : context.data_root + "/library.cache")
     {
+        load_cached_catalog();
     }
 
     ~Library() override
@@ -117,6 +126,8 @@ class Library final : public app::Concept
     void enter() override
     {
         age_ = 0.0f;
+        dependency_ready_ = false;
+        begin_refresh();
     }
 
     std::span<const app::TourStep> tour() const override
@@ -169,6 +180,22 @@ class Library final : public app::Concept
                                   : "NFS client is not implemented";
                     feedback.play(audio::Cue::error);
                 }
+            }
+            return;
+        }
+
+        if (!dependency_ready_)
+        {
+            if (input.is_pressed(Action::west))
+            {
+                source_open_ = true;
+                source_focus_ = 0;
+                feedback.play(audio::Cue::open);
+            }
+            else if (input.is_pressed(Action::confirm))
+            {
+                begin_refresh();
+                feedback.play(audio::Cue::open);
             }
             return;
         }
@@ -252,19 +279,23 @@ class Library final : public app::Concept
         const ui::Fonts &fonts = context_.fonts;
         ui::text(list, fonts.display, "PS5 Library", 96.0f, 128.0f, 62.0f, kInk);
         ui::text(list, fonts.regular,
-                 has_live_catalog_ ? "NATIVE LIBRARY  ·  SHADOWMOUNT INDEX"
-                                   : "NATIVE UI PREVIEW  ·  SAMPLE RECORDS",
+                 dependency_ready_ ? (catalog_from_cache_ ? "NATIVE LIBRARY  ·  SAVED SMP INDEX"
+                                                          : "NATIVE LIBRARY  ·  SHADOWMOUNT INDEX")
+                                   : "FEATURES LOCKED  ·  SHADOWMOUNT PLUS REQUIRED",
                  100.0f, 170.0f,
                  18.0f, kAmber, gfx::Align::left, 2.2f);
         ui::text(list, fonts.regular, installed_only_ ? "INSTALLED GAMES" : "LIBRARY BROWSER",
                  100.0f, 232.0f, 21.0f, kAccent, gfx::Align::left, 2.4f);
         ui::text(list, fonts.regular,
-                 has_live_catalog_ ? "Source: ShadowMount Plus  ·  live indexed catalog"
-                                  : "Source: sample records  ·  not connected",
+                 dependency_ready_ ? (catalog_from_cache_ ? "Source: saved local snapshot"
+                                                          : "Source: ShadowMount Plus  ·  live indexed catalog")
+                                   : "Source: locked until the local SMP API responds",
                  100.0f, 270.0f, 22.0f, kMuted);
 
         if (source_open_)
             draw_source(list, fonts);
+        else if (!dependency_ready_)
+            draw_dependency_lock(list, fonts);
         else if (detail_ >= 0)
             draw_detail(list, fonts);
         else
@@ -362,6 +393,27 @@ class Library final : public app::Concept
                      gfx::Align::center);
     }
 
+    void draw_dependency_lock(gfx::DrawList &list, const ui::Fonts &fonts) const
+    {
+        list.bordered_rect({384.0f, 326.0f, 1152.0f, 486.0f}, 24.0f, kPanel, 1.0f, kLine);
+        ui::text(list, fonts.display, "ShadowMount Plus required", 960.0f, 410.0f, 42.0f,
+                 kInk, gfx::Align::center);
+        ui::text(list, fonts.regular,
+                 "Start the existing ShadowMount Plus payload on this PS5 to unlock the library.",
+                 960.0f, 472.0f, 25.0f, kMuted, gfx::Align::center);
+        ui::text(list, fonts.regular,
+                 "This native app connects to SMP; it does not install or launch another payload.",
+                 960.0f, 520.0f, 22.0f, kMuted, gfx::Align::center);
+        ui::text(list, fonts.semibold,
+                 notice_.empty() ? "Checking the local ShadowMount Plus API..." : notice_.c_str(),
+                 960.0f, 598.0f, 23.0f, kAmber, gfx::Align::center);
+        ui::text(list, fonts.regular,
+                 "Cross: retry connection     Square: prerequisite details",
+                 960.0f, 672.0f, 21.0f, kAccent, gfx::Align::center);
+        ui::text(list, fonts.mono, "127.0.0.1:10101  ·  loopback only",
+                 960.0f, 744.0f, 19.0f, kMuted, gfx::Align::center);
+    }
+
     void draw_source(gfx::DrawList &list, const ui::Fonts &fonts) const
     {
         list.bordered_rect({400.0f, 300.0f, 1120.0f, 590.0f}, 24.0f, kPanel, 1.0f, kLine);
@@ -395,8 +447,33 @@ class Library final : public app::Concept
                  456.0f, 844.0f, 20.0f, kMuted);
     }
 
+    void load_cached_catalog()
+    {
+        if (cache_path_.empty())
+            return;
+        std::string data;
+        if (!save::read_file(cache_path_, &data, kMaxCatalogCacheBytes))
+            return;
+        const save::Decoded decoded = save::decode(save::Kind::library, data);
+        if (!decoded.ok || decoded.version != kCatalogCacheVersion)
+            return;
+        library::Catalog cached{};
+        const library::ParseResult parsed = library::parse_shadowmount_games(
+            decoded.payload.data(), decoded.payload.size(), cached);
+        if (!parsed)
+            return;
+        catalog_ = cached;
+        has_live_catalog_ = true;
+        catalog_from_cache_ = true;
+    }
+
     void begin_refresh()
     {
+        if (cache_path_.empty())
+        {
+            notice_ = "ShadowMount Plus connection is available in the PS5 app";
+            return;
+        }
         if (refresh_started_ && !refresh_done_.load(std::memory_order_acquire))
             return;
         if (refresh_started_)
@@ -405,7 +482,7 @@ class Library final : public app::Concept
             refresh_started_ = false;
         }
         refresh_done_.store(false, std::memory_order_relaxed);
-        notice_ = "Reading the ShadowMount Plus game index...";
+        notice_ = "Connecting to the installed ShadowMount Plus payload...";
         if (pthread_create(&refresh_thread_, nullptr, &Library::refresh_worker, this) != 0)
         {
             notice_ = "Could not start the ShadowMount refresh worker";
@@ -418,9 +495,21 @@ class Library final : public app::Concept
     {
         auto &self = *static_cast<Library *>(opaque);
         library::Catalog result_catalog{};
-        self.refresh_result_ = library::fetch_shadowmount_games(result_catalog);
+        self.pending_json_.clear();
+        self.pending_cache_saved_ = false;
+        self.refresh_result_ =
+            library::fetch_shadowmount_games(result_catalog, &self.pending_json_);
         if (self.refresh_result_)
+        {
             self.pending_catalog_ = result_catalog;
+            if (!self.cache_path_.empty() && !self.pending_json_.empty())
+            {
+                const std::string encoded = save::encode(save::Kind::library,
+                                                         kCatalogCacheVersion,
+                                                         self.pending_json_);
+                self.pending_cache_saved_ = save::write_atomic(self.cache_path_, encoded).empty();
+            }
+        }
         self.refresh_done_.store(true, std::memory_order_release);
         return nullptr;
     }
@@ -435,18 +524,22 @@ class Library final : public app::Concept
         {
             catalog_ = pending_catalog_;
             has_live_catalog_ = true;
+            catalog_from_cache_ = false;
+            dependency_ready_ = true;
             focus_ = 0;
             first_visible_ = 0;
-            char message[96];
-            std::snprintf(message, sizeof(message), "Indexed %zu titles from ShadowMount Plus",
-                          catalog_.count);
+            char message[128];
+            std::snprintf(message, sizeof(message), "%zu titles indexed%s", catalog_.count,
+                          pending_cache_saved_ ? " · saved for next launch" : "");
             notice_ = message;
         }
         else
         {
             notice_ = refresh_result_.error == library::FetchError::connect_failed
-                          ? "ShadowMount Plus is not running — start its payload, then refresh"
-                          : "Could not read the ShadowMount Plus game index";
+                          ? (has_live_catalog_
+                                 ? "ShadowMount Plus is not running; saved list stays locked"
+                                 : "ShadowMount Plus is not running — start its payload, then retry")
+                          : "ShadowMount Plus API check failed; verify the payload and retry";
         }
     }
 
@@ -700,6 +793,7 @@ class Library final : public app::Concept
     }
 
     app::Context &context_;
+    std::string cache_path_;
     int focus_ = 0;
     int detail_ = -1;
     int tab_ = 0;
@@ -709,12 +803,16 @@ class Library final : public app::Concept
     bool source_open_ = false;
     float age_ = 0.0f;
     std::string notice_;
+    std::string pending_json_;
     library::Catalog catalog_{};
     library::Catalog pending_catalog_{};
     library::FetchResult refresh_result_{};
     pthread_t refresh_thread_{};
     std::atomic<bool> refresh_done_{false};
     bool refresh_started_ = false;
+    bool pending_cache_saved_ = false;
+    bool catalog_from_cache_ = false;
+    bool dependency_ready_ = false;
     bool has_live_catalog_ = false;
     int first_visible_ = 0;
 };
