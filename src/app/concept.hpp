@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <memory>
 #include <span>
+#include <string>
 #include <vector>
 
 namespace hui::app
@@ -62,6 +63,8 @@ struct Context
     // Live settings. A design that edits them sets settings_changed; the app
     // applies the change (volumes, button swap, ...) and saves it.
     Settings &settings;
+    // Writable per-title storage managed by the shell (empty in host fixtures).
+    const std::string &data_root;
     bool settings_changed = false;
 };
 
@@ -143,3 +146,4 @@ using ConceptFactory = std::unique_ptr<Concept> (*)(Context &context);
 std::span<const ConceptFactory> concept_registry();
 
 } // namespace hui::app
+
