@@ -452,10 +452,15 @@ class Library final : public app::Concept
         if (has_live_catalog_)
         {
             if (!installed_only_)
-                return static_cast<int>(catalog_.count);
+            {
+                int count = 0;
+                for (std::size_t i = 0; i < catalog_.count; ++i)
+                    count += catalog_.games[i].is_ps5 ? 1 : 0;
+                return count;
+            }
             int count = 0;
             for (std::size_t i = 0; i < catalog_.count; ++i)
-                count += catalog_.games[i].installed ? 1 : 0;
+                count += catalog_.games[i].is_ps5 && catalog_.games[i].installed ? 1 : 0;
             return count;
         }
         if (!installed_only_)
@@ -480,10 +485,19 @@ class Library final : public app::Concept
         if (has_live_catalog_)
         {
             if (!installed_only_)
-                return visible;
+            {
+                for (std::size_t i = 0; i < catalog_.count; ++i)
+                {
+                    if (!catalog_.games[i].is_ps5)
+                        continue;
+                    if (visible-- == 0)
+                        return static_cast<int>(i);
+                }
+                return 0;
+            }
             for (std::size_t i = 0; i < catalog_.count; ++i)
             {
-                if (!catalog_.games[i].installed)
+                if (!catalog_.games[i].is_ps5 || !catalog_.games[i].installed)
                     continue;
                 if (visible-- == 0)
                     return static_cast<int>(i);
@@ -579,8 +593,13 @@ class Library final : public app::Concept
             ui::text(list, fonts.semibold, kTabNames[i], tab.cx(), 565.0f, 21.0f,
                      i == tab_ ? kInk : kMuted, gfx::Align::center, 2.0f);
         }
+        static constexpr const char *kInventoryMessages[] = {
+            "BASE GAME PACKAGE INVENTORY NOT PROVIDED",
+            "DLC INVENTORY NOT PROVIDED",
+            "TITLE UPDATE INVENTORY NOT PROVIDED",
+        };
         list.bordered_rect({704.0f, 620.0f, 1016.0f, 168.0f}, 16.0f, kPanel, 1.0f, kLine);
-        ui::text(list, fonts.semibold, "PACKAGE INVENTORY NOT PROVIDED", 736.0f, 670.0f,
+        ui::text(list, fonts.semibold, kInventoryMessages[tab_], 736.0f, 670.0f,
                  22.0f, kAmber);
         ui::text(list, fonts.regular,
                  "ShadowMount reports titles and source paths; it does not list game, DLC, or update packages.",

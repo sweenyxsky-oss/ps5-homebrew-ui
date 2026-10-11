@@ -8,8 +8,8 @@ this native interface.
 
 ## Branch progress
 
-The native interface preview is registered in the design switcher as
-**PS5 Library**. In the preview, D-pad navigation moves focus, Cross opens a
+The native interface is registered in the design switcher as
+**PS5 Library**. D-pad navigation moves focus, Cross opens a
 title or reports that its installer is unavailable, Circle goes back, Square
 opens the source chooser, Triangle switches cover/block layout, Options
 switches Library/Installed, and left/right changes the package tab on a title.

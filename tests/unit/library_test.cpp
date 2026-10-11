@@ -21,6 +21,8 @@ TEST_F(Library, SourcePickerOpensAndReportsUnavailableBackend)
 {
     send(*design_, press(Action::west));
     EXPECT_TRUE(played(hui::audio::Cue::open));
+    send(*design_, nav(Direction::down));
+    EXPECT_TRUE(played(hui::audio::Cue::focus));
     send(*design_, press(Action::confirm));
     EXPECT_TRUE(played(hui::audio::Cue::error));
     expect_drawable(*design_);
