@@ -4,6 +4,21 @@ This work belongs in the native OpenGL PS5 app in `ps5-homebrew-ui`. The
 `ps5-library` fork is a separate payload whose documented tile opens a library
 in the PS5 browser; that is not the target for this native interface.
 
+## Branch progress
+
+The native interface preview is registered in the design switcher as
+**PS5 Library**. In the preview, D-pad navigation moves focus, Cross opens a
+title or reports that its installer is unavailable, Circle goes back, Square
+opens the source chooser, Triangle switches cover/block layout, Options
+switches Library/Installed, and left/right changes the package tab on a title.
+
+The screen uses clearly labeled sample records. It demonstrates the requested
+layout and package information, but does not read a PS5 directory, persist an
+index, configure an NFS share, or install a package. Milestones 1 and the
+presentation portions of 2 and 3 are implemented as UI preview only. Milestone
+4 is pending a supported installer backend. Milestone 5 is pending builds and
+hardware validation.
+
 ## Five milestones
 
 1. **Native library screen.** Add a controller-first library design to the
