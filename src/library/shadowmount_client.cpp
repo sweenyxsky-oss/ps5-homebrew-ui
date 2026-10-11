@@ -98,7 +98,7 @@ FetchResult fail(FetchError error, int http_status = 0)
 
 } // namespace
 
-FetchResult fetch_shadowmount_games(Catalog &catalog)
+FetchResult fetch_shadowmount_games(Catalog &catalog, std::string *snapshot_json)
 {
     Socket socket;
     socket.fd = ::socket(AF_INET, SOCK_STREAM, 0);
@@ -183,6 +183,8 @@ FetchResult fetch_shadowmount_games(Catalog &catalog)
         result.parse_error = parsed.error;
         return result;
     }
+    if (snapshot_json)
+        snapshot_json->assign(response.data() + body_offset, body_length);
     FetchResult result{};
     result.count = parsed.count;
     result.http_status = http_status;
@@ -190,3 +192,4 @@ FetchResult fetch_shadowmount_games(Catalog &catalog)
 }
 
 } // namespace hui::library
+
