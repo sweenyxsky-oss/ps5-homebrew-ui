@@ -45,6 +45,13 @@ hardware validation.
 - `ShadowMountPlus` documents `.ffpkg`, `.exfat`, `.ffpfs`, and
   `.ffpfsc` image formats, but it is an auto-mounter. Its format recognition
   can inform labels; mounting behavior must remain behind its own API.
+- `ps5-ezremote-client` supports NFS through a `libnfs` client and reads
+  remote directory entries, but its documented launcher requires `websrv`
+  and its UI is a web UI, so it is not the native UI foundation. In the
+  inspected `NfsClient::Connect`, the URL supplies server/export and the
+  `user`/`pass` arguments are not used; do not promise credential support
+  by reusing it unchanged. It also documents PS5 fPKG installation, which is
+  a useful backend reference to investigate separately.
 - `RemotePFS` exposes NFS-backed files through an SBC and USB mass storage.
   It targets Linux SBC hardware, not an in-process PS5 NFS mount.
 - `fuse-nfs` depends on FUSE; its mount helper is not itself a PS5 NFS client.
