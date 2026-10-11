@@ -14,6 +14,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdio>
+#include <iterator>
 #include <string>
 
 namespace hui::concepts
@@ -61,16 +62,16 @@ constexpr std::array<DemoTitle, 8> kTitles{{
      "PPSA02225-game.exfat", "PPSA02225-dlc-01.exfat", "PPSA02225-update-02.exfat"},
     {"GRAN TURISMO 7", "PPSA01316", "EUR", "111.2 GB", ".ffpkg", "Installed",
      "PPSA01316-game.ffpkg", "PPSA01316-dlc-01.ffpkg", "PPSA01316-update-03.ffpkg"},
-    {"RETURNAL", "PPSA012 a", "USA", "56.1 GB", ".ffpkg", "Library",
-     "PPSA012 a-game.ffpkg", "PPSA012 a-dlc-01.ffpkg", "PPSA012 a-update-01.ffpkg"},
+    {"RETURNAL", "PPSA01234", "USA", "56.1 GB", ".ffpkg", "Library",
+     "PPSA01234-game.ffpkg", "PPSA01234-dlc-01.ffpkg", "PPSA01234-update-01.ffpkg"},
     {"RATCHET & CLANK", "PPSA01474", "USA", "33.7 GB", ".exfat", "Installed",
      "PPSA01474-game.exfat", "PPSA01474-dlc-01.exfat", "PPSA01474-update-02.exfat"},
     {"DEMON'S SOULS", "PPSA01341", "EUR", "66.9 GB", ".ffpkg", "Library",
      "PPSA01341-game.ffpkg", "PPSA01341-dlc-01.ffpkg", "PPSA01341-update-01.ffpkg"},
     {"SACKBOY", "PPSA01289", "USA", "30.2 GB", ".ffpkg", "Installed",
      "PPSA01289-game.ffpkg", "PPSA01289-dlc-01.ffpkg", "PPSA01289-update-01.ffpkg"},
-    {"RETURNAL: ASCENSION", "PPSA012 a", "EUR", "4.8 GB", ".ffpkg", "Library",
-     "PPSA012 a-game.ffpkg", "PPSA012 a-dlc-02.ffpkg", "PPSA012 a-update-02.ffpkg"},
+    {"RETURNAL: ASCENSION", "PPSA01234", "EUR", "4.8 GB", ".ffpkg", "Library",
+     "PPSA01234-game.ffpkg", "PPSA01234-dlc-02.ffpkg", "PPSA01234-update-02.ffpkg"},
 }};
 
 constexpr const char *kTechniques[] = {
@@ -172,7 +173,7 @@ class Library final : public app::Concept
         if (input.is_pressed(Action::menu))
         {
             installed_only_ = !installed_only_;
-            focus_ = 0;
+            focus_ = std::min(focus_, visible_count() - 1);
             feedback.play(audio::Cue::toggle);
         }
         if (input.is_pressed(Action::north))
@@ -183,7 +184,7 @@ class Library final : public app::Concept
         if (input.nav != Direction::none)
         {
             const int delta = input.nav == Direction::right || input.nav == Direction::down ? 1 : -1;
-            const int next = std::clamp(focus_ + delta, 0, static_cast<int>(kTitles.size()) - 1);
+            const int next = std::clamp(focus_ + delta, 0, visible_count() - 1);
             if (next != focus_)
             {
                 focus_ = next;
@@ -216,7 +217,9 @@ class Library final : public app::Concept
         ui::text(list, fonts.regular, "Source: /hostapp  ·  cached index: preview only",
                  100.0f, 270.0f, 22.0f, kMuted);
 
-        if (detail_ >= 0)
+        if (source_open_)
+            draw_source(list, fonts);
+        else if (detail_ >= 0)
             draw_detail(list, fonts);
         else
             draw_library(list, fonts);
@@ -243,13 +246,14 @@ class Library final : public app::Concept
         constexpr float card_w = 408.0f;
         constexpr float card_h = 282.0f;
 
-        for (std::size_t i = 0; i < kTitles.size(); ++i)
+        for (int visible = 0; visible < visible_count(); ++visible)
         {
-            const int col = static_cast<int>(i) % kColumns;
-            const int row = static_cast<int>(i) / kColumns;
+            const std::size_t i = static_cast<std::size_t>(visible_title(visible));
+            const int col = visible % kColumns;
+            const int row = visible / kColumns;
             const float x = x0 + static_cast<float>(col) * (card_w + gap_x);
             const float y = y0 + static_cast<float>(row) * (card_h + gap_y);
-            const bool focused = static_cast<int>(i) == focus_;
+            const bool focused = visible == focus_;
             const Rect card{x, y, card_w, card_h};
             list.rounded_rect(card, 18.0f, focused ? kPanelLift : kPanel,
                               focused ? 3.0f : 1.0f, focused ? kAccent : kLine);
@@ -292,6 +296,58 @@ class Library final : public app::Concept
         if (!notice_.empty())
             ui::text(list, fonts.semibold, notice_, 960.0f, 968.0f, 24.0f, kAmber,
                      gfx::Align::center);
+    }
+
+    void draw_source(gfx::DrawList &list, const ui::Fonts &fonts) const
+    {
+        list.rounded_rect({400.0f, 300.0f, 1120.0f, 590.0f}, 24.0f, kPanel, 1.0f, kLine);
+        ui::text(list, fonts.display, "Library sources", 456.0f, 372.0f, 42.0f, kInk);
+        ui::text(list, fonts.regular, "Choose where the native index will look", 456.0f, 412.0f,
+                 23.0f, kMuted);
+        static constexpr const char *kSources[] = {
+            "/hostapp  ·  default source",
+            "PS5 folder  ·  browse internal storage",
+            "NFS share  ·  address, export, user, password",
+        };
+        for (int i = 0; i < 3; ++i)
+        {
+            const Rect row{456.0f, 456.0f + static_cast<float>(i) * 82.0f, 1008.0f, 62.0f};
+            list.rounded_rect(row, 12.0f, source_focus_ == i ? kPanelLift : kPanel,
+                              source_focus_ == i ? 2.0f : 1.0f,
+                              source_focus_ == i ? kAccent : kLine);
+            ui::text(list, fonts.regular, kSources[i], row.x + 24.0f, row.y + 39.0f, 23.0f,
+                     source_focus_ == i ? kInk : kMuted);
+        }
+        ui::text(list, fonts.mono, "Address: —     Export path: —     User: —     Password: —",
+                 456.0f, 734.0f, 20.0f, kMuted);
+        ui::text(list, fonts.regular, "Not connected: folder picker and NFS client are not implemented",
+                 456.0f, 786.0f, 21.0f, kAmber);
+        ui::text(list, fonts.regular, "Confirm to see connector status  ·  Circle to return",
+                 456.0f, 844.0f, 20.0f, kMuted);
+    }
+
+    int visible_count() const
+    {
+        if (!installed_only_)
+            return static_cast<int>(kTitles.size());
+        int count = 0;
+        for (const DemoTitle &title : kTitles)
+            count += title.state[0] == 'I' ? 1 : 0;
+        return count;
+    }
+
+    int visible_title(int visible) const
+    {
+        if (!installed_only_)
+            return visible;
+        for (std::size_t i = 0; i < kTitles.size(); ++i)
+        {
+            if (kTitles[i].state[0] != 'I')
+                continue;
+            if (visible-- == 0)
+                return static_cast<int>(i);
+        }
+        return 0;
     }
 
     void draw_detail(gfx::DrawList &list, const ui::Fonts &fonts) const
