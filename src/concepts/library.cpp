@@ -255,7 +255,7 @@ class Library final : public app::Concept
             const float y = y0 + static_cast<float>(row) * (card_h + gap_y);
             const bool focused = visible == focus_;
             const Rect card{x, y, card_w, card_h};
-            list.rounded_rect(card, 18.0f, focused ? kPanelLift : kPanel,
+            list.bordered_rect(card, 18.0f, focused ? kPanelLift : kPanel,
                               focused ? 3.0f : 1.0f, focused ? kAccent : kLine);
             const Color cover = cover_color(i);
             if (blocks_)
@@ -300,7 +300,7 @@ class Library final : public app::Concept
 
     void draw_source(gfx::DrawList &list, const ui::Fonts &fonts) const
     {
-        list.rounded_rect({400.0f, 300.0f, 1120.0f, 590.0f}, 24.0f, kPanel, 1.0f, kLine);
+        list.bordered_rect({400.0f, 300.0f, 1120.0f, 590.0f}, 24.0f, kPanel, 1.0f, kLine);
         ui::text(list, fonts.display, "Library sources", 456.0f, 372.0f, 42.0f, kInk);
         ui::text(list, fonts.regular, "Choose where the native index will look", 456.0f, 412.0f,
                  23.0f, kMuted);
@@ -312,7 +312,7 @@ class Library final : public app::Concept
         for (int i = 0; i < 3; ++i)
         {
             const Rect row{456.0f, 456.0f + static_cast<float>(i) * 82.0f, 1008.0f, 62.0f};
-            list.rounded_rect(row, 12.0f, source_focus_ == i ? kPanelLift : kPanel,
+            list.bordered_rect(row, 12.0f, source_focus_ == i ? kPanelLift : kPanel,
                               source_focus_ == i ? 2.0f : 1.0f,
                               source_focus_ == i ? kAccent : kLine);
             ui::text(list, fonts.regular, kSources[i], row.x + 24.0f, row.y + 39.0f, 23.0f,
@@ -371,7 +371,7 @@ class Library final : public app::Concept
         for (int i = 0; i < 3; ++i)
         {
             const Rect tab{704.0f + static_cast<float>(i) * 250.0f, 528.0f, 222.0f, 58.0f};
-            list.rounded_rect(tab, 13.0f, i == tab_ ? kPanelLift : kPanel,
+            list.bordered_rect(tab, 13.0f, i == tab_ ? kPanelLift : kPanel,
                               i == tab_ ? 2.0f : 1.0f, i == tab_ ? kAccent : kLine);
             ui::text(list, fonts.semibold, kTabNames[i], tab.cx(), 565.0f, 21.0f,
                      i == tab_ ? kInk : kMuted, gfx::Align::center, 2.0f);
@@ -389,14 +389,14 @@ class Library final : public app::Concept
             file = title.update_file;
             kind = "TITLE UPDATE";
         }
-        list.rounded_rect({704.0f, 620.0f, 1016.0f, 168.0f}, 16.0f, kPanel, 1.0f, kLine);
+        list.bordered_rect({704.0f, 620.0f, 1016.0f, 168.0f}, 16.0f, kPanel, 1.0f, kLine);
         ui::text(list, fonts.regular, kind, 736.0f, 662.0f, 18.0f, kMuted,
                  gfx::Align::left, 2.0f);
         ui::text(list, fonts.mono, file, 736.0f, 706.0f, 21.0f, kInk);
         ui::text(list, fonts.mono, title.format, 736.0f, 752.0f, 21.0f, kAmber);
         ui::text(list, fonts.mono, tab_ == 0 ? title.size : "2.4 GB (sample)", 1668.0f, 752.0f,
                  21.0f, kInk, gfx::Align::right);
-        list.rounded_rect({704.0f, 818.0f, 302.0f, 68.0f}, 15.0f, kPanelLift, 1.0f, kLine);
+        list.bordered_rect({704.0f, 818.0f, 302.0f, 68.0f}, 15.0f, kPanelLift, 1.0f, kLine);
         ui::text(list, fonts.semibold, tab_ == 1 ? "INSTALL ALL" : "INSTALL",
                  855.0f, 862.0f, 21.0f, kMuted, gfx::Align::center);
         ui::text(list, fonts.regular, "Unavailable: no installer backend connected",
