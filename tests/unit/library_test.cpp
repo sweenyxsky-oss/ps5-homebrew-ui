@@ -30,28 +30,38 @@ TEST_F(Library, SourcePickerOpensAndReportsUnavailableBackend)
     EXPECT_TRUE(played(hui::audio::Cue::back));
 }
 
-TEST_F(Library, TitleDetailsChangePackageTabsAndKeepInstallUnavailable)
+TEST_F(Library, RequiresRunningShadowMountBeforeUnlockingLibraryFeatures)
 {
     send(*design_, press(Action::confirm));
-    EXPECT_TRUE(played(hui::audio::Cue::select));
+    EXPECT_TRUE(played(hui::audio::Cue::open));
     send(*design_, nav(Direction::right));
+    EXPECT_FALSE(played(hui::audio::Cue::focus));
+    send(*design_, press(Action::menu));
+    EXPECT_FALSE(played(hui::audio::Cue::toggle));
+    send(*design_, press(Action::north));
+    EXPECT_FALSE(played(hui::audio::Cue::toggle));
+    expect_drawable(*design_);
+
+    send(*design_, press(Action::west));
+    EXPECT_TRUE(played(hui::audio::Cue::open));
+    send(*design_, nav(Direction::down));
     EXPECT_TRUE(played(hui::audio::Cue::focus));
     send(*design_, press(Action::confirm));
     EXPECT_TRUE(played(hui::audio::Cue::error));
-    expect_drawable(*design_);
     send(*design_, press(Action::back));
     EXPECT_TRUE(played(hui::audio::Cue::back));
 }
 
-TEST_F(Library, LibraryModesAndLayoutsRemainNavigable)
+TEST_F(Library, ModesAndLayoutStayLockedWithoutShadowMount)
 {
     send(*design_, press(Action::menu));
-    EXPECT_TRUE(played(hui::audio::Cue::toggle));
+    EXPECT_FALSE(played(hui::audio::Cue::toggle));
     send(*design_, press(Action::north));
-    EXPECT_TRUE(played(hui::audio::Cue::toggle));
+    EXPECT_FALSE(played(hui::audio::Cue::toggle));
     send(*design_, nav(Direction::down));
-    EXPECT_TRUE(played(hui::audio::Cue::focus));
+    EXPECT_FALSE(played(hui::audio::Cue::focus));
     expect_drawable(*design_);
 }
 
 } // namespace
+
