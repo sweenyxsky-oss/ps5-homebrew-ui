@@ -23,7 +23,7 @@ hardware validation.
 
 1. **Native library screen.** Add a controller-first library design to the
    native app, with Installed and Library modes, cover and compact grid views,
-   search/filter affordances, and a selected-title details view.
+   an Installed filter, source affordance, and a selected-title details view.
 2. **Title metadata and packages.** Define the title record consumed by the
    screen (title ID, display name, cover, installed state, version, region,
    package groups, format, and byte size). Keep base game, DLC, and updates
