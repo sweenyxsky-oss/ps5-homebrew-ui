@@ -2,7 +2,9 @@
 
 This work belongs in the native OpenGL PS5 app in `ps5-homebrew-ui`. The
 `ps5-library` fork is a separate payload whose documented tile opens a library
-in the PS5 browser; that is not the target for this native interface.
+in the PS5 browser. The fork contains only its README, payload catalog, and
+screenshots; it has no payload source to modify. That is not the target for
+this native interface.
 
 ## Branch progress
 
