@@ -6,6 +6,8 @@
 
 #include "library/shadowmount_catalog.hpp"
 
+#include <string>
+
 namespace hui::library
 {
 
@@ -32,6 +34,7 @@ struct FetchResult
 // Reads the indexed game snapshot from the local ShadowMount Plus service.
 // It never accepts a caller-supplied host, so it cannot send credentials or
 // catalog requests to a remote machine.
-FetchResult fetch_shadowmount_games(Catalog &catalog);
+FetchResult fetch_shadowmount_games(Catalog &catalog, std::string *snapshot_json = nullptr);
 
 } // namespace hui::library
+
