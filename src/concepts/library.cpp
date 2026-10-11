@@ -1,20 +1,25 @@
-// ps5-homebrew-ui - Native PS5 game library interface preview.
+// ps5-homebrew-ui - Native PS5 game library.
 // Copyright (C) 2026 BlackBearReloaded
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// The records below are deliberately sample data. This screen exercises the
-// native controller and presentation flow; it does not scan or install files.
+// Live titles come from ShadowMount Plus over loopback. Sample records remain
+// visible until the user refreshes from that service. Package installation,
+// direct filesystem scanning, and NFS are not claimed by this design.
 
 #include "concepts/concepts.hpp"
 
+#include "library/shadowmount_client.hpp"
 #include "ui/glyphs.hpp"
 #include "ui/motion.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <array>
 #include <cstddef>
 #include <cstdio>
+#include <cstring>
 #include <iterator>
+#include <pthread.h>
 #include <string>
 
 namespace hui::concepts
@@ -77,9 +82,9 @@ constexpr std::array<DemoTitle, 8> kTitles{{
 constexpr const char *kTechniques[] = {
     "Native OpenGL screen with controller navigation and explicit focus",
     "Library and installed filters, cover and block layouts, and title details",
-    "Package tabs show title IDs, filenames, extensions, and illustrative sizes",
-    "Source settings expose the planned /hostapp, PS5 folder, and NFS choices",
-    "Preview data and unavailable install actions are labelled honestly",
+    "ShadowMount Plus indexed titles, install state, source path, and measured size",
+    "Loopback API work runs on a worker so input and drawing stay responsive",
+    "Package groups and install actions show explicit unavailable states",
 };
 
 class Library final : public app::Concept
@@ -87,6 +92,12 @@ class Library final : public app::Concept
   public:
     explicit Library(app::Context &context) : context_(context)
     {
+    }
+
+    ~Library() override
+    {
+        if (refresh_started_)
+            pthread_join(refresh_thread_, nullptr);
     }
 
     const app::ConceptInfo &info() const override
@@ -125,6 +136,7 @@ class Library final : public app::Concept
     void update(const InputFrame &input, float dt, app::Feedback &feedback) override
     {
         age_ += dt;
+        finish_refresh();
         if (source_open_)
         {
             if (input.is_pressed(Action::back))
@@ -145,8 +157,18 @@ class Library final : public app::Concept
             }
             if (input.is_pressed(Action::confirm))
             {
-                notice_ = "Source connector is not available in this preview";
-                feedback.play(audio::Cue::error);
+                if (source_focus_ == 0)
+                {
+                    begin_refresh();
+                    feedback.play(audio::Cue::open);
+                }
+                else
+                {
+                    notice_ = source_focus_ == 1
+                                  ? "PS5 folder picker is not implemented"
+                                  : "NFS client is not implemented";
+                    feedback.play(audio::Cue::error);
+                }
             }
             return;
         }
@@ -187,7 +209,8 @@ class Library final : public app::Concept
         if (input.is_pressed(Action::menu))
         {
             installed_only_ = !installed_only_;
-            focus_ = std::min(focus_, visible_count() - 1);
+            focus_ = visible_count() == 0 ? 0 : std::min(focus_, visible_count() - 1);
+            update_scroll();
             feedback.play(audio::Cue::toggle);
         }
         if (input.is_pressed(Action::north))
@@ -195,22 +218,26 @@ class Library final : public app::Concept
             blocks_ = !blocks_;
             feedback.play(audio::Cue::toggle);
         }
-        if (input.nav != Direction::none)
+        if (input.nav != Direction::none && visible_count() > 0)
         {
             const int delta = input.nav == Direction::right || input.nav == Direction::down ? 1 : -1;
             const int next = std::clamp(focus_ + delta, 0, visible_count() - 1);
             if (next != focus_)
             {
                 focus_ = next;
+                update_scroll();
                 feedback.play(audio::Cue::focus);
             }
         }
         if (input.is_pressed(Action::confirm))
         {
-            detail_ = focus_;
-            tab_ = static_cast<int>(PackageTab::game);
-            notice_.clear();
-            feedback.play(audio::Cue::select);
+            if (visible_count() > 0)
+            {
+                detail_ = focus_;
+                tab_ = static_cast<int>(PackageTab::game);
+                notice_.clear();
+                feedback.play(audio::Cue::select);
+            }
         }
     }
 
@@ -224,11 +251,16 @@ class Library final : public app::Concept
         gfx::DrawList &list = frame.scene;
         const ui::Fonts &fonts = context_.fonts;
         ui::text(list, fonts.display, "PS5 Library", 96.0f, 128.0f, 62.0f, kInk);
-        ui::text(list, fonts.regular, "NATIVE UI PREVIEW  ·  SAMPLE RECORDS", 100.0f, 170.0f,
+        ui::text(list, fonts.regular,
+                 has_live_catalog_ ? "NATIVE LIBRARY  ·  SHADOWMOUNT INDEX"
+                                   : "NATIVE UI PREVIEW  ·  SAMPLE RECORDS",
+                 100.0f, 170.0f,
                  18.0f, kAmber, gfx::Align::left, 2.2f);
         ui::text(list, fonts.regular, installed_only_ ? "INSTALLED GAMES" : "LIBRARY BROWSER",
                  100.0f, 232.0f, 21.0f, kAccent, gfx::Align::left, 2.4f);
-        ui::text(list, fonts.regular, "Source: /hostapp  ·  cached index: preview only",
+        ui::text(list, fonts.regular,
+                 has_live_catalog_ ? "Source: ShadowMount Plus  ·  live indexed catalog"
+                                  : "Source: sample records  ·  not connected",
                  100.0f, 270.0f, 22.0f, kMuted);
 
         if (source_open_)
@@ -260,11 +292,19 @@ class Library final : public app::Concept
         constexpr float card_w = 408.0f;
         constexpr float card_h = 282.0f;
 
-        for (int visible = 0; visible < visible_count(); ++visible)
+        const int count = std::min(8, std::max(0, visible_count() - first_visible_));
+        for (int row_index = 0; row_index < count; ++row_index)
         {
+            const int visible = first_visible_ + row_index;
             const std::size_t i = static_cast<std::size_t>(visible_title(visible));
-            const int col = visible % kColumns;
-            const int row = visible / kColumns;
+            char size[32];
+            size_text(i, size, sizeof(size));
+            const char *name = title_name(i);
+            const char *id = title_id(i);
+            const char *state = title_installed(i) ? "Installed" : "Library";
+            const char *format = title_format(i);
+            const int col = row_index % kColumns;
+            const int row = row_index / kColumns;
             const float x = x0 + static_cast<float>(col) * (card_w + gap_x);
             const float y = y0 + static_cast<float>(row) * (card_h + gap_y);
             const bool focused = visible == focus_;
@@ -275,16 +315,16 @@ class Library final : public app::Concept
             if (blocks_)
             {
                 list.rounded_rect({x + 22.0f, y + 22.0f, 84.0f, 84.0f}, 16.0f, cover);
-                ui::text(list, fonts.semibold, initials(kTitles[i].name), x + 64.0f, y + 76.0f,
+                ui::text(list, fonts.semibold, initials(name), x + 64.0f, y + 76.0f,
                          27.0f, kInk, gfx::Align::center);
-                ui::text(list, fonts.semibold, kTitles[i].name, x + 126.0f, y + 60.0f, 25.0f,
+                ui::text(list, fonts.semibold, name, x + 126.0f, y + 60.0f, 25.0f,
                          kInk);
-                ui::text(list, fonts.mono, kTitles[i].id, x + 126.0f, y + 94.0f, 20.0f, kMuted);
-                ui::text(list, fonts.regular, kTitles[i].state, x + 126.0f, y + 132.0f, 21.0f,
+                ui::text(list, fonts.mono, id, x + 126.0f, y + 94.0f, 20.0f, kMuted);
+                ui::text(list, fonts.regular, state, x + 126.0f, y + 132.0f, 21.0f,
                          kGreen);
-                ui::text(list, fonts.mono, kTitles[i].size, x + 28.0f, y + 232.0f, 21.0f,
+                ui::text(list, fonts.mono, size, x + 28.0f, y + 232.0f, 21.0f,
                          kInk);
-                ui::text(list, fonts.mono, kTitles[i].format, x + card_w - 28.0f, y + 232.0f,
+                ui::text(list, fonts.mono, format, x + card_w - 28.0f, y + 232.0f,
                          21.0f, kAmber, gfx::Align::right);
             }
             else
@@ -292,21 +332,31 @@ class Library final : public app::Concept
                 list.rounded_rect({x + 20.0f, y + 18.0f, card_w - 40.0f, 154.0f}, 14.0f, cover);
                 list.rounded_rect({x + 32.0f, y + 30.0f, card_w - 64.0f, 130.0f}, 10.0f,
                                   Color::rgb(0x0a1019, 0.45f));
-                ui::text(list, fonts.semibold, initials(kTitles[i].name), x + card_w * 0.5f,
+                ui::text(list, fonts.semibold, initials(name), x + card_w * 0.5f,
                          y + 112.0f, 35.0f, kInk, gfx::Align::center, 1.0f);
-                ui::text(list, fonts.semibold, kTitles[i].name, x + 24.0f, y + 207.0f, 23.0f,
+                ui::text(list, fonts.semibold, name, x + 24.0f, y + 207.0f, 23.0f,
                          kInk);
-                ui::text(list, fonts.mono, kTitles[i].id, x + 24.0f, y + 239.0f, 18.0f, kMuted);
-                ui::text(list, fonts.mono, kTitles[i].size, x + card_w - 20.0f, y + 239.0f, 19.0f,
+                ui::text(list, fonts.mono, id, x + 24.0f, y + 239.0f, 18.0f, kMuted);
+                ui::text(list, fonts.mono, size, x + card_w - 20.0f, y + 239.0f, 19.0f,
                          kInk, gfx::Align::right);
-                ui::text(list, fonts.regular, kTitles[i].state, x + 24.0f, y + 268.0f, 18.0f,
+                ui::text(list, fonts.regular, state, x + 24.0f, y + 268.0f, 18.0f,
                          kGreen);
-                ui::text(list, fonts.mono, kTitles[i].format, x + card_w - 20.0f, y + 268.0f,
+                ui::text(list, fonts.mono, format, x + card_w - 20.0f, y + 268.0f,
                          18.0f, kAmber, gfx::Align::right);
             }
         }
         ui::text(list, fonts.regular, blocks_ ? "BLOCK VIEW" : "COVER VIEW", 1818.0f, 294.0f,
                  18.0f, kMuted, gfx::Align::right, 2.0f);
+        if (visible_count() == 0)
+            ui::text(list, fonts.semibold, "No titles match this view", 960.0f, 560.0f, 30.0f,
+                     kMuted, gfx::Align::center);
+        else if (visible_count() > 8)
+        {
+            char page[48];
+            std::snprintf(page, sizeof(page), "%d–%d / %d", first_visible_ + 1,
+                          std::min(first_visible_ + 8, visible_count()), visible_count());
+            ui::text(list, fonts.mono, page, 1818.0f, 968.0f, 18.0f, kMuted, gfx::Align::right);
+        }
         if (!notice_.empty())
             ui::text(list, fonts.semibold, notice_, 960.0f, 968.0f, 24.0f, kAmber,
                      gfx::Align::center);
@@ -319,7 +369,7 @@ class Library final : public app::Concept
         ui::text(list, fonts.regular, "Choose where the native index will look", 456.0f, 412.0f,
                  23.0f, kMuted);
         static constexpr const char *kSources[] = {
-            "/hostapp  ·  default source",
+            "ShadowMount Plus  ·  indexed PS5 catalog",
             "PS5 folder  ·  browse internal storage",
             "NFS share  ·  address, export, user, password",
         };
@@ -335,15 +385,79 @@ class Library final : public app::Concept
         ui::text(list, fonts.mono, "Address: —     Export path: —     User: —     Password: —",
                  456.0f, 734.0f, 20.0f, kMuted);
         ui::text(list, fonts.regular,
-                 notice_.empty() ? "Not connected: folder picker and NFS client are not implemented"
+                 notice_.empty() ? "Local API: 127.0.0.1:10101  ·  no credentials sent"
                                  : notice_.c_str(),
                  456.0f, 786.0f, 21.0f, kAmber);
-        ui::text(list, fonts.regular, "Confirm to see connector status  ·  Circle to return",
+        ui::text(list, fonts.regular, "Confirm ShadowMount to refresh  ·  Circle to return",
                  456.0f, 844.0f, 20.0f, kMuted);
+    }
+
+    void begin_refresh()
+    {
+        if (refresh_started_ && !refresh_done_.load(std::memory_order_acquire))
+            return;
+        if (refresh_started_)
+        {
+            pthread_join(refresh_thread_, nullptr);
+            refresh_started_ = false;
+        }
+        refresh_done_.store(false, std::memory_order_relaxed);
+        notice_ = "Reading the ShadowMount Plus game index...";
+        if (pthread_create(&refresh_thread_, nullptr, &Library::refresh_worker, this) != 0)
+        {
+            notice_ = "Could not start the ShadowMount refresh worker";
+            return;
+        }
+        refresh_started_ = true;
+    }
+
+    static void *refresh_worker(void *opaque)
+    {
+        auto &self = *static_cast<Library *>(opaque);
+        library::Catalog result_catalog{};
+        self.refresh_result_ = library::fetch_shadowmount_games(result_catalog);
+        if (self.refresh_result_)
+            self.pending_catalog_ = result_catalog;
+        self.refresh_done_.store(true, std::memory_order_release);
+        return nullptr;
+    }
+
+    void finish_refresh()
+    {
+        if (!refresh_done_.load(std::memory_order_acquire) || !refresh_started_)
+            return;
+        pthread_join(refresh_thread_, nullptr);
+        refresh_started_ = false;
+        if (refresh_result_)
+        {
+            catalog_ = pending_catalog_;
+            has_live_catalog_ = true;
+            focus_ = 0;
+            first_visible_ = 0;
+            char message[96];
+            std::snprintf(message, sizeof(message), "Indexed %zu titles from ShadowMount Plus",
+                          catalog_.count);
+            notice_ = message;
+        }
+        else
+        {
+            notice_ = refresh_result_.error == library::FetchError::connect_failed
+                          ? "ShadowMount Plus API is not reachable on loopback"
+                          : "Could not read the ShadowMount Plus game index";
+        }
     }
 
     int visible_count() const
     {
+        if (has_live_catalog_)
+        {
+            if (!installed_only_)
+                return static_cast<int>(catalog_.count);
+            int count = 0;
+            for (std::size_t i = 0; i < catalog_.count; ++i)
+                count += catalog_.games[i].installed ? 1 : 0;
+            return count;
+        }
         if (!installed_only_)
             return static_cast<int>(kTitles.size());
         int count = 0;
@@ -352,8 +466,30 @@ class Library final : public app::Concept
         return count;
     }
 
+    void update_scroll()
+    {
+        if (focus_ < first_visible_)
+            first_visible_ = focus_;
+        else if (focus_ >= first_visible_ + 8)
+            first_visible_ = focus_ - 7;
+        first_visible_ = std::max(0, std::min(first_visible_, std::max(0, visible_count() - 8)));
+    }
+
     int visible_title(int visible) const
     {
+        if (has_live_catalog_)
+        {
+            if (!installed_only_)
+                return visible;
+            for (std::size_t i = 0; i < catalog_.count; ++i)
+            {
+                if (!catalog_.games[i].installed)
+                    continue;
+                if (visible-- == 0)
+                    return static_cast<int>(i);
+            }
+            return 0;
+        }
         if (!installed_only_)
             return visible;
         for (std::size_t i = 0; i < kTitles.size(); ++i)
@@ -366,8 +502,101 @@ class Library final : public app::Concept
         return 0;
     }
 
+    const char *title_name(std::size_t index) const
+    {
+        return has_live_catalog_ ? catalog_.games[index].name : kTitles[index].name;
+    }
+
+    const char *title_id(std::size_t index) const
+    {
+        return has_live_catalog_ ? catalog_.games[index].title_id : kTitles[index].id;
+    }
+
+    bool title_installed(std::size_t index) const
+    {
+        return has_live_catalog_ ? catalog_.games[index].installed
+                                 : kTitles[index].state[0] == 'I';
+    }
+
+    const char *title_format(std::size_t index) const
+    {
+        if (!has_live_catalog_)
+            return kTitles[index].format;
+        const library::Game &game = catalog_.games[index];
+        if (std::strcmp(game.source_type, "folder") == 0)
+            return "FOLDER";
+        if (std::strcmp(game.source_type, "pkg") == 0)
+            return ".pkg";
+        const char *dot = std::strrchr(game.path, '.');
+        const char *slash = std::strrchr(game.path, '/');
+        return dot && (!slash || dot > slash) ? dot : "IMAGE";
+    }
+
+    void size_text(std::size_t index, char *out, std::size_t capacity) const
+    {
+        if (!has_live_catalog_)
+        {
+            std::snprintf(out, capacity, "%s", kTitles[index].size);
+            return;
+        }
+        const library::Game &game = catalog_.games[index];
+        if (!game.has_size)
+        {
+            std::snprintf(out, capacity, "Size unavailable");
+            return;
+        }
+        constexpr double kGiB = 1024.0 * 1024.0 * 1024.0;
+        std::snprintf(out, capacity, "%.1f GB", static_cast<double>(game.size_bytes) / kGiB);
+    }
+
+    void draw_live_detail(gfx::DrawList &list, const ui::Fonts &fonts) const
+    {
+        const std::size_t index = static_cast<std::size_t>(visible_title(detail_));
+        const library::Game &game = catalog_.games[index];
+        char size[32];
+        size_text(index, size, sizeof(size));
+        list.rounded_rect({100.0f, 316.0f, 550.0f, 594.0f}, 24.0f, cover_color(index));
+        list.rounded_rect({124.0f, 340.0f, 502.0f, 546.0f}, 18.0f,
+                          Color::rgb(0x0b111a, 0.76f));
+        ui::text(list, fonts.display, initials(game.name), 375.0f, 628.0f, 62.0f, kInk,
+                 gfx::Align::center);
+        ui::text(list, fonts.semibold, game.name, 704.0f, 374.0f, 42.0f, kInk);
+        ui::text(list, fonts.mono, game.title_id, 704.0f, 420.0f, 24.0f, kAccent);
+        ui::text(list, fonts.regular, "Version", 704.0f, 474.0f, 21.0f, kMuted);
+        ui::text(list, fonts.regular, game.version[0] ? game.version : "Unknown", 824.0f,
+                 474.0f, 21.0f, kInk);
+        ui::text(list, fonts.regular, "Game size", 1000.0f, 474.0f, 21.0f, kMuted);
+        ui::text(list, fonts.mono, size, 1126.0f, 474.0f, 21.0f, kInk);
+        ui::text(list, fonts.regular, "Source format", 1340.0f, 474.0f, 21.0f, kMuted);
+        ui::text(list, fonts.mono, title_format(index), 1512.0f, 474.0f, 21.0f, kAmber);
+
+        static constexpr const char *kTabNames[] = {"GAME", "DLC", "UPDATE"};
+        for (int i = 0; i < 3; ++i)
+        {
+            const Rect tab{704.0f + static_cast<float>(i) * 250.0f, 528.0f, 222.0f, 58.0f};
+            list.bordered_rect(tab, 13.0f, i == tab_ ? kPanelLift : kPanel,
+                              i == tab_ ? 2.0f : 1.0f, i == tab_ ? kAccent : kLine);
+            ui::text(list, fonts.semibold, kTabNames[i], tab.cx(), 565.0f, 21.0f,
+                     i == tab_ ? kInk : kMuted, gfx::Align::center, 2.0f);
+        }
+        list.bordered_rect({704.0f, 620.0f, 1016.0f, 168.0f}, 16.0f, kPanel, 1.0f, kLine);
+        ui::text(list, fonts.semibold, "PACKAGE INVENTORY NOT PROVIDED", 736.0f, 670.0f,
+                 22.0f, kAmber);
+        ui::text(list, fonts.regular,
+                 "ShadowMount reports titles and source paths; it does not list game, DLC, or update packages.",
+                 736.0f, 716.0f, 19.0f, kMuted);
+        ui::text(list, fonts.regular, "Install actions are unavailable until a supported installer is connected.",
+                 704.0f, 862.0f, 20.0f, kAmber);
+        ui::text(list, fonts.mono, game.path, 704.0f, 930.0f, 17.0f, kMuted);
+    }
+
     void draw_detail(gfx::DrawList &list, const ui::Fonts &fonts) const
     {
+        if (has_live_catalog_)
+        {
+            draw_live_detail(list, fonts);
+            return;
+        }
         const DemoTitle &title = kTitles[static_cast<std::size_t>(detail_)];
         list.rounded_rect({100.0f, 316.0f, 550.0f, 594.0f}, 24.0f, cover_color(detail_));
         list.rounded_rect({124.0f, 340.0f, 502.0f, 546.0f}, 18.0f,
@@ -458,6 +687,14 @@ class Library final : public app::Concept
     bool source_open_ = false;
     float age_ = 0.0f;
     std::string notice_;
+    library::Catalog catalog_{};
+    library::Catalog pending_catalog_{};
+    library::FetchResult refresh_result_{};
+    pthread_t refresh_thread_{};
+    std::atomic<bool> refresh_done_{false};
+    bool refresh_started_ = false;
+    bool has_live_catalog_ = false;
+    int first_visible_ = 0;
 };
 
 } // namespace

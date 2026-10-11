@@ -14,33 +14,42 @@ title or reports that its installer is unavailable, Circle goes back, Square
 opens the source chooser, Triangle switches cover/block layout, Options
 switches Library/Installed, and left/right changes the package tab on a title.
 
-The screen uses clearly labeled sample records. It demonstrates the requested
-layout and package information, but does not read a PS5 directory, persist an
-index, configure an NFS share, or install a package. Milestones 1 and the
-presentation portions of 2 and 3 are implemented as UI preview only. Milestone
-4 is pending a supported installer backend. Milestone 5 is pending builds and
-hardware validation.
+The screen now has a native loopback client for the documented ShadowMount
+Plus `/api/v1/games` route. It fetches on a background thread and parses a
+bounded JSON snapshot into title ID, title name, source path/type, version,
+installed state, and optional measured size. A malformed response leaves the
+last valid catalog in place. The installed filter, scrolling, covers/blocks,
+and title details work with live entries. The client always targets
+`127.0.0.1:10101`; it never sends game data or credentials over the LAN.
+
+The native catalog parser and behavior cases now cover the real response field
+names, escaped Unicode, invalid IDs, API errors, and preservation of the last
+good index. The built-in preview data remains available until the user selects
+the ShadowMount source and completes a successful refresh. ShadowMount does
+not list base-game/DLC/update package files or expose a general package install
+route, so those actions stay unavailable. Direct PS5 folder browsing, a
+persistent local index, NFS, and package installation are not implemented.
 
 ## Five milestones
 
-1. **Native library screen.** Add a controller-first library design to the
-   native app, with Installed and Library modes, cover and compact grid views,
-   an Installed filter, source affordance, and a selected-title details view.
-2. **Title metadata and packages.** Define the title record consumed by the
-   screen (title ID, display name, cover, installed state, version, region,
-   package groups, format, and byte size). Keep base game, DLC, and updates
-   distinct; show exact filenames, extensions, and sizes.
-3. **Sources and cached indexing.** Add a source model for the default
-   `/hostapp` location, a PS5 folder picker, and NFS connection settings
-   (address, export path, user and password). Cache directory metadata and
-   invalidate it when the user refreshes or changes a source. Do not cache
-   credentials with the game index.
-4. **Install actions.** Connect explicit game, DLC, update, and install-all
-   actions to a PS5-supported installer backend. Show the selected package
-   format and size before confirmation, then report real progress and errors.
-5. **Native and hardware validation.** Build the PS5 app, run host snapshots
-   and unit tests, and validate scanning, metadata grouping, controller
-   navigation, and install behavior on supported console firmware.
+1. **Native library screen.** Implemented: controller-first Installed/Library
+   modes, cover/block layouts, eight-title paging, source dialog, live indexed
+   entries, and title details.
+2. **Title metadata and packages.** Partially implemented: title ID, name,
+   source path/type, version, installed state and measured size parse from the
+   real API response. API icon retrieval and actual base-game/DLC/update
+   package inventory remain to be connected.
+3. **Sources and cached indexing.** Partially implemented: the native app can
+   read the existing ShadowMount index from its loopback API without blocking
+   the frame loop. Direct folder selection, NFS credentials/transport and a
+   persistent metadata cache remain unimplemented. No credentials are stored.
+4. **Install actions.** Pending a verified PS5 installer API. ShadowMount
+   exposes title mounting and source management, but no game/DLC/update PKG
+   installation endpoint; those are not interchangeable operations.
+5. **Native and hardware validation.** Host tests, snapshots, native build,
+   and real-console checks remain to be run. Console-only API connectivity,
+   controller behavior, filesystem permissions, and firmware compatibility
+   cannot be established from the current Windows-only tool environment.
 
 ## Integration findings
 
@@ -66,9 +75,9 @@ hardware validation.
 
 ## Scope of this branch
 
-The native UI milestone can be implemented and reviewed in this repository.
-Real directory scanning, persistent index storage, NFS transport, metadata
-parsing, and package installation require platform services and a compatible
-PS5 backend; the UI must not represent demo data as a successful scan or
-installation. Each backend integration should have a clear capability check
-and an honest unavailable/error state.
+The native screen now consumes real ShadowMount title snapshots, while sample
+records are explicitly marked until a successful refresh. Directory browsing,
+persistent index storage, NFS transport, package enumeration and installation
+still require additional platform services and a compatible PS5 backend. Each
+unavailable action remains labelled; only console validation can establish
+the runtime behavior of the API client.
