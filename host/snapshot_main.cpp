@@ -21,7 +21,7 @@
 #include "core/save_file.hpp"
 #include "demo/catalog.hpp"
 #include "gfx/gl_program.hpp"
-#include "gfx/renderer.hpp"
+#include "gfx/gl_renderer.hpp"
 #include "manifest.hpp"
 #include "ui/fonts.hpp"
 
@@ -76,7 +76,7 @@ bool load_font(hui::gfx::Renderer &renderer, const std::string &path, hui::gfx::
         return false;
     }
     ref->font = font;
-    ref->texture = renderer.batch().create_font_texture(*font);
+    ref->texture = renderer.create_font_texture(*font);
     return true;
 }
 
@@ -163,7 +163,7 @@ int main(int argc, char **argv)
                  reinterpret_cast<const char *>(glGetString(GL_RENDERER)));
     hui::gfx::set_glsl_prefix("#version 450 core\n");
 
-    hui::gfx::Renderer renderer;
+    hui::gfx::GlRenderer renderer;
     hui::gfx::Font regular;
     hui::gfx::Font semibold;
     hui::gfx::Font display;

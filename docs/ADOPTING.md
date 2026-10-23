@@ -33,17 +33,17 @@ twenty-line example.
 The smallest program that draws with the kit:
 
 ```cpp
-#include "gfx/renderer.hpp"
+#include "gfx/gl_renderer.hpp"
 #include "ui/fonts.hpp"
 
-gfx::Renderer renderer;
+gfx::GlRenderer renderer;
 renderer.init();                                   // after the GL context exists
 
 gfx::Font face;                                    // one baked font
 std::string bytes;
 save::read_file("/app0/assets/fonts/inter-regular.huifont", &bytes);
 face.load(bytes);
-ui::FontRef regular{&face, renderer.batch().create_font_texture(face)};
+ui::FontRef regular{&face, renderer.create_font_texture(face)};
 
 gfx::DrawList list;
 for (;;)

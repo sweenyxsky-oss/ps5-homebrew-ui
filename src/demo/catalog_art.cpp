@@ -3,15 +3,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 // The covers show how to render into a texture with the UI renderer itself:
-// bind a framebuffer, queue a backdrop and a draw list, present. An app with
-// real artwork would upload its images with GlBatch::create_texture instead.
+// queue a backdrop and a draw list, then render_to_texture. An app with real
+// artwork would upload its images with Renderer::create_texture instead.
 
 #include "demo/catalog.hpp"
 
-#include "gfx/backdrop.hpp"
 #include "gfx/renderer.hpp"
-
-#include <GL/glcorearb.h>
 
 #include <iterator>
 #include <string>
@@ -85,47 +82,23 @@ void draw_motif(gfx::DrawList &list, int index, const Item &item)
 
 } // namespace
 
-void Catalog::release_covers()
+void Catalog::release_covers(gfx::Renderer &renderer)
 {
     for (Item &item : items_)
     {
-        if (item.cover != 0)
-            glDeleteTextures(1, &item.cover);
+        renderer.destroy_texture(item.cover);
         item.cover = 0;
     }
 }
 
 bool Catalog::build_covers(gfx::Renderer &renderer, const ui::Fonts &fonts)
 {
-    release_covers();
+    release_covers(renderer);
     constexpr float kSize = static_cast<float>(kCoverSize);
-    GLuint framebuffer = 0;
-    glGenFramebuffers(1, &framebuffer);
     gfx::DrawList list;
-    bool ok = true;
     int index = 0;
     for (Item &item : items_)
     {
-        GLuint texture = 0;
-        glGenTextures(1, &texture);
-        glBindTexture(GL_TEXTURE_2D, texture);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, kCoverSize, kCoverSize, 0, GL_RGBA,
-                     GL_UNSIGNED_BYTE, nullptr);
-        // One level only: mip chains leave ps5-opengl's batched fast path.
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
-        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-        {
-            glDeleteTextures(1, &texture);
-            ok = false;
-            break;
-        }
-
         gfx::BackdropSpec spec;
         spec.mode = kModes[static_cast<std::size_t>(index) % std::size(kModes)];
         spec.colors[0] = item.dark;
@@ -155,13 +128,12 @@ bool Catalog::build_covers(gfx::Renderer &renderer, const ui::Fonts &fonts)
         renderer.begin();
         renderer.backdrop(spec);
         renderer.draw(list);
-        renderer.present(framebuffer, kCoverSize, kCoverSize, kSize, kSize);
-        item.cover = texture;
+        item.cover = renderer.render_to_texture(kCoverSize, kCoverSize, kSize, kSize);
+        if (item.cover == 0)
+            return false;
         ++index;
     }
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glDeleteFramebuffers(1, &framebuffer);
-    return ok;
+    return true;
 }
 
 } // namespace hui::demo

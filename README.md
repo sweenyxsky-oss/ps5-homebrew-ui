@@ -1,3 +1,19 @@
+> **About this fork.** PS5_VKHomebrewUI is my fork of
+> [ps5-homebrew-ui](https://github.com/blackbearreloaded/ps5-homebrew-ui) by
+> BlackBearReloaded, which is the project and gets the credit for the kit, the
+> designs, the themes and the sounds. The fork is for a Vulkan backend, so the kit
+> draws through RADV in titles made with
+> [PS5_VulkanTemplate](https://github.com/mihawk-99/PS5_VulkanTemplate), which pins
+> a revision of it. The OpenGL backend stays as it is upstream and keeps building:
+> the shell, the designs and the sample content see only the backend-neutral
+> `gfx::Renderer` (`src/gfx/renderer.hpp`); `gfx::GlRenderer`
+> (`src/gfx/gl_renderer.hpp`) plays it with OpenGL and `gfx::VkRenderer`
+> (`src/gfx/vk/`) with Vulkan ([docs/VULKAN.md](docs/VULKAN.md)). I merge
+> upstream's `main` in regularly (never rebase), check that the OpenGL pictures
+> still match upstream's and that the Vulkan pictures match the OpenGL ones
+> (`tools/compare-backends.py`), then move the template's pin. Everything below is
+> upstream's README, unchanged.
+
 <div align="center">
 
 # ps5-homebrew-ui

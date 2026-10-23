@@ -79,9 +79,10 @@ draw call, so clip regions, not individual items.
 
 `image(texture, rect, uv, tint, radius)`:
 
-- textures you upload with `GlBatch::create_texture(width, height, rgba)` use
+- textures you upload with `Renderer::create_texture(width, height, rgba)` use
   `gfx::kFullUv`;
-- textures you rendered into (the sample covers, a `gfx::Canvas`) are stored
+- textures you rendered into (the sample covers, `Renderer::render_to_texture`, a
+  `gfx::Canvas`) are stored
   bottom row first: use `gfx::kCanvasUv`.
 
 The sample covers are `context.catalog[i].cover`.

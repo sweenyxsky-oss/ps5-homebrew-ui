@@ -18,7 +18,7 @@
 #include "core/version.hpp"
 #include "demo/catalog.hpp"
 #include "gfx/canvas.hpp"
-#include "gfx/renderer.hpp"
+#include "gfx/gl_renderer.hpp"
 #include "platform/ps5/audio_out.hpp"
 #include "platform/ps5/display_egl.hpp"
 #include "platform/ps5/pad.hpp"
@@ -103,7 +103,7 @@ bool load_font(hui::gfx::Renderer &renderer, const char *name, hui::gfx::Font *f
         return false;
     }
     ref->font = font;
-    ref->texture = renderer.batch().create_font_texture(*font);
+    ref->texture = renderer.create_font_texture(*font);
     return true;
 }
 
@@ -165,7 +165,7 @@ int main()
         sys::park();
     }
 
-    gfx::Renderer renderer;
+    gfx::GlRenderer renderer;
     gfx::Font regular;
     gfx::Font semibold;
     gfx::Font display_font;

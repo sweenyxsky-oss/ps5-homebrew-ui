@@ -51,8 +51,9 @@ if (( ${#app_c_sources[@]} )); then
     run_tidy app_c_sources -std=c11 -isystem "$sdk/target/include"
 fi
 
-mapfile -d '' app_cpp_sources < <(find "$root/src" -path "$root/src/third_party" -prune \
-    -o -type f \( -name '*.cc' -o -name '*.cpp' \) -print0)
+# The Vulkan backend is checked by the host Vulkan build, not this PS5 OpenGL profile.
+mapfile -d '' app_cpp_sources < <(find "$root/src" \( -path "$root/src/third_party" \
+    -o -path "$root/src/gfx/vk" \) -prune -o -type f \( -name '*.cc' -o -name '*.cpp' \) -print0)
 app_cpp_sources+=("$root/tooling/native/app_crt.cpp" "$root/tooling/native/app_cpp_runtime.cpp")
 if (( ${#app_cpp_sources[@]} )); then
     run_tidy app_cpp_sources -std=c++20 -fno-exceptions -fno-rtti --target=x86_64-sie-ps5 \
